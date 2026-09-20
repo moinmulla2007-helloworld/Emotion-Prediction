@@ -24,6 +24,18 @@
   --ease-soft: cubic-bezier(.4,0,.2,1);
 }
 
+/* light theme, toggled via <body data-theme="light"> */
+body[data-theme="light"]{
+  --bg: #f4f2ec;
+  --surface: #ffffff;
+  --surface-2: #f0eee6;
+  --border: rgba(20,20,20,0.08);
+  --border-strong: rgba(20,20,20,0.16);
+  --text: #17181d;
+  --text-dim: #5c5f6d;
+  --text-faint: #93968f;
+}
+
 /* per-emotion accent palette, applied to <body data-emotion="..."> */
 body[data-emotion="sadness"]  { --accent: #5b7fde; --accent-soft: rgba(91,127,222,0.16); }
 body[data-emotion="joy"]      { --accent: #f2b705; --accent-soft: rgba(242,183,5,0.16); }
@@ -46,6 +58,7 @@ body[data-emotion="surprise"] { --accent: #17bebb; --accent-soft: rgba(23,190,18
 
 *{ box-sizing: border-box; }
 html{ color-scheme: dark; }
+html:has(body[data-theme="light"]){ color-scheme: light; }
 
 body{
   margin: 0;
@@ -56,7 +69,7 @@ body{
   background-attachment: fixed;
   color: var(--text);
   font-family: var(--font-body);
-  transition: background 900ms var(--ease-soft);
+  transition: background 900ms var(--ease-soft), color 400ms var(--ease-soft);
   overflow-x: hidden;
 }
 
@@ -125,6 +138,27 @@ textarea, button{ font-family: inherit; }
   color: var(--text-dim);
   font-size: 13px;
   letter-spacing: 0.01em;
+  flex: 1;
+}
+
+.theme-toggle{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-dim);
+  font-size: 15px;
+  cursor: pointer;
+  transition: border-color 200ms, color 200ms, transform 200ms var(--ease-out);
+}
+.theme-toggle:hover{
+  border-color: var(--accent);
+  color: var(--accent);
+  transform: rotate(-12deg);
 }
 
 .eyebrow{
@@ -248,10 +282,40 @@ textarea{
   outline: none;
   transition: border-color 250ms, box-shadow 250ms;
 }
+body[data-theme="light"] textarea{ background: rgba(0,0,0,0.03); }
 textarea::placeholder{ color: var(--text-faint); }
 textarea:focus{
   border-color: var(--accent);
   box-shadow: 0 0 0 4px var(--accent-soft);
+}
+
+/* --- example prompt chips ----------------------------------------- */
+
+.examples{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.example-chip{
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-dim);
+  font-size: 12.5px;
+  padding: 7px 13px;
+  border-radius: 999px;
+  cursor: pointer;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: border-color 200ms, color 200ms, transform 150ms var(--ease-out);
+}
+.example-chip:hover{
+  border-color: var(--accent);
+  color: var(--text);
+  transform: translateY(-1px);
 }
 
 .input-footer{
@@ -268,6 +332,12 @@ textarea:focus{
   color: var(--text-faint);
 }
 
+.btn-group{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .btn-primary{
   display: inline-flex;
   align-items: center;
@@ -276,7 +346,7 @@ textarea:focus{
   border-radius: 999px;
   border: none;
   background: var(--text);
-  color: #0e0f14;
+  color: var(--bg);
   font-weight: 600;
   font-size: 14.5px;
   cursor: pointer;
@@ -298,6 +368,22 @@ textarea:focus{
   content: "";
 }
 .btn-primary.loading{ pointer-events: none; }
+
+.btn-ghost{
+  padding: 12px 18px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  font-weight: 600;
+  font-size: 14.5px;
+  cursor: pointer;
+  transition: border-color 200ms, color 200ms;
+}
+.btn-ghost:hover{
+  border-color: var(--border-strong);
+  color: var(--text);
+}
 
 .error-msg{
   margin: 12px 2px 0;
@@ -324,17 +410,39 @@ textarea:focus{
 .result.entering{ animation: rise 620ms var(--ease-out) both; }
 
 .reveal, .breakdown{
+  position: relative;
   border: 1px solid var(--border);
   border-radius: 24px;
   padding: 32px;
   background: linear-gradient(180deg, var(--surface), var(--surface-2));
 }
 
+.copy-btn{
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-faint);
+  font-size: 14px;
+  cursor: pointer;
+  transition: border-color 200ms, color 200ms;
+}
+.copy-btn:hover{ border-color: var(--accent); color: var(--accent); }
+.copy-btn.copied{ color: #52d17c; border-color: #52d17c; }
+
 .reveal-main{
   display: flex;
   align-items: center;
   gap: 16px;
   margin-bottom: 10px;
+  padding-right: 32px;
 }
 
 .reveal-emoji{
@@ -399,6 +507,7 @@ textarea:focus{
   background: rgba(255,255,255,0.06);
   overflow: hidden;
 }
+body[data-theme="light"] .bar-track{ background: rgba(0,0,0,0.06); }
 
 .bar-fill{
   height: 100%;
@@ -412,6 +521,56 @@ textarea:focus{
   font-size: 12px;
   color: var(--text-faint);
   text-align: right;
+}
+
+/* ============================================================
+   HISTORY
+   ============================================================ */
+
+.history{
+  margin-top: 32px;
+  animation: rise 500ms var(--ease-out) both;
+}
+
+.history-list{
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.history-item{
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  cursor: pointer;
+  transition: border-color 200ms, transform 150ms var(--ease-out);
+  text-align: left;
+  width: 100%;
+  color: var(--text);
+}
+.history-item:hover{ border-color: var(--border-strong); transform: translateX(2px); }
+
+.history-emoji{ font-size: 18px; flex-shrink: 0; }
+.history-text{
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13.5px;
+  color: var(--text-dim);
+}
+.history-label{
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+  text-transform: capitalize;
+  flex-shrink: 0;
 }
 
 /* ============================================================

@@ -10,12 +10,17 @@
     surprise: "😲",
   };
 
+  const HISTORY_KEY = "moodline_history";
+  const THEME_KEY = "moodline_theme";
+  const MAX_HISTORY = 6;
+
   const el = {
     statusDot: document.getElementById("statusDot"),
     serverStatusText: document.getElementById("serverStatusText"),
     textInput: document.getElementById("textInput"),
     charCount: document.getElementById("charCount"),
     analyzeBtn: document.getElementById("analyzeBtn"),
+    clearBtn: document.getElementById("clearBtn"),
     errorMsg: document.getElementById("errorMsg"),
     orb: document.getElementById("orb"),
     orbEmoji: document.getElementById("orbEmoji"),
@@ -25,9 +30,51 @@
     confidenceText: document.getElementById("confidenceText"),
     echoedText: document.getElementById("echoedText"),
     barsContainer: document.getElementById("barsContainer"),
+    copyBtn: document.getElementById("copyBtn"),
+    copyIcon: document.getElementById("copyIcon"),
+    examples: document.getElementById("examples"),
+    historySection: document.getElementById("historySection"),
+    historyList: document.getElementById("historyList"),
+    themeToggle: document.getElementById("themeToggle"),
+    themeIcon: document.getElementById("themeIcon"),
   };
 
   let modelReady = false;
+  let lastResult = null; // { emotion, confidence, text }
+
+  /* ---------------------------------------------------------------
+     Theme
+  --------------------------------------------------------------- */
+  function initTheme() {
+    let saved = null;
+    try {
+      saved = localStorage.getItem(THEME_KEY);
+    } catch (e) {
+      /* storage unavailable — fall back to default dark theme */
+    }
+    applyTheme(saved === "light" ? "light" : "dark");
+  }
+
+  function applyTheme(theme) {
+    if (theme === "light") {
+      document.body.setAttribute("data-theme", "light");
+      el.themeIcon.textContent = "☀";
+    } else {
+      document.body.removeAttribute("data-theme");
+      el.themeIcon.textContent = "☾";
+    }
+  }
+
+  el.themeToggle.addEventListener("click", () => {
+    const isLight = document.body.getAttribute("data-theme") === "light";
+    const next = isLight ? "dark" : "light";
+    applyTheme(next);
+    try {
+      localStorage.setItem(THEME_KEY, next);
+    } catch (e) {
+      /* ignore — theme just won't persist */
+    }
+  });
 
   /* ---------------------------------------------------------------
      Health check — poll until the model is loaded
@@ -75,9 +122,134 @@
   function syncButtonState() {
     const hasText = el.textInput.value.trim().length > 0;
     el.analyzeBtn.disabled = !hasText || !modelReady;
+    el.clearBtn.hidden = !hasText && el.resultSection.hidden;
   }
 
   el.analyzeBtn.addEventListener("click", runAnalysis);
+
+  /* ---------------------------------------------------------------
+     Example prompts
+  --------------------------------------------------------------- */
+  el.examples.addEventListener("click", (e) => {
+    const chip = e.target.closest(".example-chip");
+    if (!chip) return;
+    el.textInput.value = chip.dataset.text;
+    el.charCount.textContent = el.textInput.value.length;
+    syncButtonState();
+    el.textInput.focus();
+  });
+
+  /* ---------------------------------------------------------------
+     Clear
+  --------------------------------------------------------------- */
+  el.clearBtn.addEventListener("click", () => {
+    el.textInput.value = "";
+    el.charCount.textContent = "0";
+    hideError();
+    el.resultSection.hidden = true;
+    el.orb.classList.remove("settled");
+    el.orbEmoji.textContent = "✎";
+    el.orbEmoji.style.opacity = "1";
+    document.body.removeAttribute("data-emotion");
+    lastResult = null;
+    syncButtonState();
+    el.textInput.focus();
+  });
+
+  /* ---------------------------------------------------------------
+     Copy result
+  --------------------------------------------------------------- */
+  el.copyBtn.addEventListener("click", async () => {
+    if (!lastResult) return;
+    const summary = `${capitalize(lastResult.emotion)} (${(lastResult.confidence * 100).toFixed(1)}% confidence) — “${lastResult.text}”`;
+    try {
+      await navigator.clipboard.writeText(summary);
+      flashCopied();
+    } catch (e) {
+      // fallback for environments without clipboard API access
+      const ta = document.createElement("textarea");
+      ta.value = summary;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand("copy");
+        flashCopied();
+      } catch (err) {
+        /* copy unsupported — silently ignore */
+      }
+      document.body.removeChild(ta);
+    }
+  });
+
+  function flashCopied() {
+    el.copyBtn.classList.add("copied");
+    el.copyIcon.textContent = "✓";
+    setTimeout(() => {
+      el.copyBtn.classList.remove("copied");
+      el.copyIcon.textContent = "⧉";
+    }, 1400);
+  }
+
+  /* ---------------------------------------------------------------
+     History
+  --------------------------------------------------------------- */
+  function loadHistory() {
+    try {
+      const raw = localStorage.getItem(HISTORY_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function saveHistoryEntry(entry) {
+    const items = loadHistory();
+    items.unshift(entry);
+    const trimmed = items.slice(0, MAX_HISTORY);
+    try {
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(trimmed));
+    } catch (e) {
+      /* storage unavailable — history just won't persist */
+    }
+    renderHistory(trimmed);
+  }
+
+  function renderHistory(items) {
+    items = items || loadHistory();
+    el.historyList.innerHTML = "";
+
+    if (!items.length) {
+      el.historySection.hidden = true;
+      return;
+    }
+
+    el.historySection.hidden = false;
+    items.forEach((item) => {
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "history-item";
+      row.innerHTML = `
+        <span class="history-emoji">${EMOJI[item.emotion] || "🙂"}</span>
+        <span class="history-text">${escapeHtml(item.text)}</span>
+        <span class="history-label">${item.emotion}</span>
+      `;
+      row.addEventListener("click", () => {
+        el.textInput.value = item.text;
+        el.charCount.textContent = item.text.length;
+        syncButtonState();
+        runAnalysis();
+      });
+      el.historyList.appendChild(row);
+    });
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+  }
 
   /* ---------------------------------------------------------------
      Analysis flow
@@ -109,6 +281,7 @@
 
       const data = await res.json();
       renderResult(data, text);
+      saveHistoryEntry({ text, emotion: data.predicted_emotion });
     } catch (err) {
       exitThinking(false);
       showError(err.message || "Something went wrong. Try again.");
@@ -151,6 +324,8 @@
     el.confidenceText.textContent = `${(data.confidence * 100).toFixed(1)}% confidence`;
     el.echoedText.textContent = `“${originalText}”`;
 
+    lastResult = { emotion, confidence: data.confidence, text: originalText };
+
     renderBars(data.all_probabilites);
 
     el.resultSection.hidden = false;
@@ -159,6 +334,7 @@
     el.resultSection.classList.add("entering");
 
     el.resultSection.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    syncButtonState();
   }
 
   function renderBars(probs) {
@@ -198,5 +374,7 @@
   /* ---------------------------------------------------------------
      Boot
   --------------------------------------------------------------- */
+  initTheme();
+  renderHistory();
   checkHealth();
 })();
